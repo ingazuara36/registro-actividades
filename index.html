@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Registro de Actividades</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
+    h1 { text-align: center; }
+    form { margin-bottom: 20px; background: white; padding: 15px; border-radius: 8px; }
+    label { display: block; margin-top: 10px; }
+    input, textarea, select { width: 100%; padding: 8px; margin-top: 5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background-color: #eee; }
+    button { margin-top: 15px; padding: 10px 20px; }
+  </style>
+</head>
+<body>
+  <h1>Registro de Actividades Diarias</h1>
+  <form id="activity-form">
+    <label>Fecha:<input type="date" id="date" required></label>
+    <label>Hora de inicio:<input type="time" id="start-time" required></label>
+    <label>Hora de fin:<input type="time" id="end-time" required></label>
+    <label>Descripción:<textarea id="description" required></textarea></label>
+    <label>Categoría:<input type="text" id="category"></label>
+    <button type="submit">Guardar actividad</button>
+  </form>
+
+  <h2>Actividades de Hoy</h2>
+  <table id="activity-table">
+    <thead>
+      <tr><th>Fecha</th><th>Inicio</th><th>Fin</th><th>Descripción</th><th>Categoría</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <button onclick="downloadCSV('semana')">Descargar Reporte Semanal</button>
+  <button onclick="downloadCSV('mes')">Descargar Reporte Mensual</button>
+
+  <script>
+    const form = document.getElementById('activity-form');
+    const tableBody = document.querySelector('#activity-table tbody');
+
+    function loadActivities() {
+      const data = JSON.parse(localStorage.getItem('activities') || '[]');
+      const today = new Date().toISOString().split('T')[0];
+      const todayData = data.filter(d => d.date === today);
+      tableBody.innerHTML = '';
+      todayData.forEach(d => {
+        const row = `<tr><td>${d.date}</td><td>${d.start}</td><td>${d.end}</td><td>${d.description}</td><td>${d.category}</td></tr>`;
+        tableBody.innerHTML += row;
+      });
+    }
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const activity = {
+        date: document.getElementById('date').value,
+        start: document.getElementById('start-time').value,
+        end: document.getElementById('end-time').value,
+        description: document.getElementById('description').value,
+        category: document.getElementById('category').value || 'General'
+      };
+      const data = JSON.parse(localStorage.getItem('activities') || '[]');
+      data.push(activity);
+      localStorage.setItem('activities', JSON.stringify(data));
+      form.reset();
+      loadActivities();
+    });
+
+    function downloadCSV(period) {
+      const data = JSON.parse(localStorage.getItem('activities') || '[]');
+      const now = new Date();
+      const filtered = data.filter(d => {
+        const date = new Date(d.date);
+        if (period === 'semana') {
+          const startWeek = new Date(now);
+          startWeek.setDate(now.getDate() - 7);
+          return date >= startWeek && date <= now;
+        } else if (period === 'mes') {
+          return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+        }
+        return false;
+      });
+
+      let csv = 'Fecha,Inicio,Fin,Descripción,Categoría\n';
+      filtered.forEach(d => {
+        csv += `${d.date},${d.start},${d.end},"${d.description}",${d.category}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `reporte_${period}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    loadActivities();
+  </script>
+</body>
+</html>
