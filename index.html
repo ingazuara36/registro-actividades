@@ -84,11 +84,11 @@
         return false;
       });
 
-      let csv = 'Fecha,Inicio,Fin,Descripción,Categoría\n';
+      let csv = '\uFEFFFecha,Inicio,Fin,Descripción,Categoría\n';
       filtered.forEach(d => {
         csv += `${d.date},${d.start},${d.end},"${d.description}",${d.category}\n`;
       });
-      const blob = new Blob([csv], { type: 'text/csv' });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
