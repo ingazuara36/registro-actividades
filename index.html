@@ -1,1 +1,137 @@
-
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Registro de Actividades</title>
+  <link href="https://fonts.googleapis.com/css2?family=Raleway&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body { font-family: Raleway, sans-serif; font-size: 11pt; padding: 20px; background: #f4f4f4; }
+    h1 { text-align: center; }
+    form, .filter-section { margin-bottom: 20px; background: white; padding: 15px; border-radius: 8px; }
+    label { display: block; margin-top: 10px; }
+    input, textarea, select { width: 100%; padding: 8px; margin-top: 5px; font-family: Raleway, sans-serif; font-size: 11pt; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; font-family: Raleway, sans-serif; font-size: 11pt; }
+    th { background-color: #eee; }
+    button { margin-top: 15px; padding: 10px 20px; font-family: Raleway, sans-serif; font-size: 11pt; }
+    .action-buttons { display: flex; gap: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Registro de Actividades Diarias</h1>
+  <form id="activity-form">
+    <input type="hidden" id="edit-index" />
+    <label for="date">Fecha:</label>
+    <input type="date" id="date" required />
+    <label for="category">Categoría:</label>
+    <select id="category" required>
+      <option value="">Selecciona una categoría</option>
+      <option value="Reunión">Reunión</option>
+      <option value="Desarrollo">Desarrollo</option>
+      <option value="Soporte">Soporte</option>
+      <option value="Planificación">Planificación</option>
+      <option value="Otro">Otro</option>
+    </select>
+    <label for="description">Descripción:</label>
+    <textarea id="description" rows="3" required></textarea>
+    <label for="duration">Duración (horas):</label>
+    <input type="number" id="duration" min="0.1" step="0.1" required />
+    <button type="submit">Guardar Actividad</button>
+  </form>
+  <div>
+    <button onclick="exportToExcel()">Exportar a Excel</button>
+  </div>
+  <table id="activity-table">
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Categoría</th>
+        <th>Descripción</th>
+        <th>Duración</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <script>
+    const form = document.getElementById("activity-form");
+    const tableBody = document.querySelector("#activity-table tbody");
+    function loadActivities() {
+      const data = JSON.parse(localStorage.getItem("activities") || "[]");
+      const sortedData = data.sort((a, b) => new Date(a.date) - new Date(b.date));
+      tableBody.innerHTML = "";
+      sortedData.forEach((item, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${item.date}</td>
+          <td>${item.category}</td>
+          <td>${item.description}</td>
+          <td>${item.duration}</td>
+          <td class="action-buttons">
+            <button onclick="editActivity(${index})">Editar</button>
+            <button onclick="deleteActivity(${index})">Eliminar</button>
+          </td>
+        `;
+        tableBody.appendChild(row);
+      });
+    }
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const index = document.getElementById("edit-index").value;
+      const date = document.getElementById("date").value;
+      const category = document.getElementById("category").value;
+      const description = document.getElementById("description").value;
+      const duration = document.getElementById("duration").value;
+      const newItem = { date, category, description, duration };
+      const data = JSON.parse(localStorage.getItem("activities") || "[]");
+      if (index) {
+        data[parseInt(index)] = newItem;
+      } else {
+        data.push(newItem);
+      }
+      localStorage.setItem("activities", JSON.stringify(data));
+      form.reset();
+      document.getElementById("edit-index").value = "";
+      loadActivities();
+    });
+    function editActivity(index) {
+      const data = JSON.parse(localStorage.getItem("activities") || "[]");
+      const item = data[index];
+      document.getElementById("edit-index").value = index;
+      document.getElementById("date").value = item.date;
+      document.getElementById("category").value = item.category;
+      document.getElementById("description").value = item.description;
+      document.getElementById("duration").value = item.duration;
+    }
+    function deleteActivity(index) {
+      const data = JSON.parse(localStorage.getItem("activities") || "[]");
+      data.splice(index, 1);
+      localStorage.setItem("activities", JSON.stringify(data));
+      loadActivities();
+    }
+    function exportToExcel() {
+      const data = JSON.parse(localStorage.getItem("activities") || "[]");
+      const sortedData = data.sort((a, b) => new Date(a.date) - new Date(b.date));
+      const ws = XLSX.utils.json_to_sheet(sortedData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Actividades");
+      const categoryTotals = {};
+      sortedData.forEach(({ category, duration }) => {
+        categoryTotals[category] = (categoryTotals[category] || 0) + parseFloat(duration);
+      });
+      const chartData = [["Categoría", "Horas"]];
+      for (let cat in categoryTotals) {
+        chartData.push([cat, categoryTotals[cat]]);
+      }
+      const chartSheet = XLSX.utils.aoa_to_sheet(chartData);
+      XLSX.utils.book_append_sheet(wb, chartSheet, "Resumen Categorías");
+      XLSX.writeFile(wb, "reporte_actividades.xlsx");
+    }
+    loadActivities();
+  </script>
+</body>
+</html>
