@@ -4,16 +4,18 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Registro de Actividades</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
+    body { font-family: Raleway, sans-serif; font-size: 11pt; padding: 20px; background: #f4f4f4; }
     h1 { text-align: center; }
-    form { margin-bottom: 20px; background: white; padding: 15px; border-radius: 8px; }
+    form, .filter-section { margin-bottom: 20px; background: white; padding: 15px; border-radius: 8px; }
     label { display: block; margin-top: 10px; }
-    input, textarea, select { width: 100%; padding: 8px; margin-top: 5px; }
+    input, textarea, select { width: 100%; padding: 8px; margin-top: 5px; font-family: Raleway, sans-serif; font-size: 11pt; }
     table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; font-family: Raleway, sans-serif; font-size: 11pt; }
     th { background-color: #eee; }
-    button { margin-top: 15px; padding: 10px 20px; }
+    button { margin-top: 15px; padding: 10px 20px; font-family: Raleway, sans-serif; font-size: 11pt; }
     .action-buttons { display: flex; gap: 5px; }
   </style>
 </head>
@@ -29,7 +31,12 @@
     <button type="submit">Guardar actividad</button>
   </form>
 
-  <h2>Actividades de Hoy</h2>
+  <div class="filter-section">
+    <label>Filtrar por fecha:<input type="date" id="filter-date"></label>
+    <button onclick="loadActivities()">Aplicar filtro</button>
+  </div>
+
+  <h2>Actividades</h2>
   <table id="activity-table">
     <thead>
       <tr><th>Fecha</th><th>Inicio</th><th>Fin</th><th>Descripción</th><th>Categoría</th><th>Acciones</th></tr>
@@ -37,8 +44,7 @@
     <tbody></tbody>
   </table>
 
-  <button onclick="downloadCSV('semana')">Descargar Reporte Semanal</button>
-  <button onclick="downloadCSV('mes')">Descargar Reporte Mensual</button>
+  <button onclick="downloadExcelReport()">Descargar Reporte con Gráfico</button>
 
   <script>
     const form = document.getElementById('activity-form');
@@ -46,10 +52,10 @@
 
     function loadActivities() {
       const data = JSON.parse(localStorage.getItem('activities') || '[]');
-      const today = new Date().toISOString().split('T')[0];
+      const filterDate = document.getElementById('filter-date').value;
       tableBody.innerHTML = '';
       data.forEach((d, i) => {
-        if (d.date === today) {
+        if (!filterDate || d.date === filterDate) {
           const row = document.createElement('tr');
           row.innerHTML = `<td>${d.date}</td><td>${d.start}</td><td>${d.end}</td><td>${d.description}</td><td>${d.category}</td>`;
           const actionCell = document.createElement('td');
@@ -112,32 +118,25 @@
       loadActivities();
     }
 
-    function downloadCSV(period) {
+    function downloadExcelReport() {
       const data = JSON.parse(localStorage.getItem('activities') || '[]');
-      const now = new Date();
-      const filtered = data.filter(d => {
-        const date = new Date(d.date);
-        if (period === 'semana') {
-          const startWeek = new Date(now);
-          startWeek.setDate(now.getDate() - 7);
-          return date >= startWeek && date <= now;
-        } else if (period === 'mes') {
-          return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-        }
-        return false;
+      if (data.length === 0) return alert("No hay datos para exportar.");
+
+      const sortedData = data.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+      const categoryCount = {};
+      sortedData.forEach(row => {
+        categoryCount[row.category] = (categoryCount[row.category] || 0) + 1;
       });
 
-      let csv = '\uFEFFFecha,Inicio,Fin,Descripción,Categoría\n';
-      filtered.forEach(d => {
-        csv += `${d.date},${d.start},${d.end},"${d.description}",${d.category}\n`;
-      });
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `reporte_${period}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const wb = XLSX.utils.book_new();
+      const ws_data = XLSX.utils.json_to_sheet(sortedData);
+      XLSX.utils.book_append_sheet(wb, ws_data, "Actividades");
+
+      const summary = Object.entries(categoryCount).map(([cat, count]) => ({ Categoría: cat, Cantidad: count }));
+      const ws_summary = XLSX.utils.json_to_sheet(summary);
+      XLSX.utils.book_append_sheet(wb, ws_summary, "Resumen");
+
+      XLSX.writeFile(wb, "Reporte_Actividades.xlsx");
     }
 
     loadActivities();
